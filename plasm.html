@@ -1,0 +1,556 @@
+<!doctype html>
+<html>
+<head>
+  <title>Play Assembler</title>
+  <style type="text/css">
+  BODY {font-family: monospace;font-size:12pt;}
+  CODE {font-family: monospace; background-color: white;}
+  .breakPoint {background-color: red;}
+  </style>
+</head>
+<body style="overflow:hidden;margin:0pt;padding:0pt;">
+  <div style="position:absolute;left:0pt;top:0pt;right:160pt;bottom:25pt;margin:0pt;padding:0pt;overflow:scroll;" id="dsp">
+    <div style="font-family:sans-serif;font-size:10pt;background-color:silver;padding:4pt;" id="intro">
+      <b>Welcome to Play Assembler</b><br/>
+      In an effort to self-learn more about (virtual) machine code and compilers/parsers/lexers, I created this toy virtual CPU with its own assembler.
+      It's distinctly unlike anything I know exists, specifically to investigate what it takes to make something like this work, and have a free choice of what to put in and what to leave out; also to notice whether old ideas have already nested in my head and if tunnel vision would take hold.<br />
+      The CPU is kept strictly simple: it has 5 general purpose registers: <code>A</code>,<code>B</code>,<code>C</code>,<code>D</code>,<code>E</code>; a stack pointer <code>S</code>; an instruction pointer <code>I</code> when executing is set to the address of the next instruction to run; and a boolean flag <code>F</code>.<br />
+      The CPU has access to memory, which, for the purpose of this play environment, is based on a plain javascript array, so register and memory values are (signed!) integers of an unspecified bit width. Access memory by writing <code>[A]</code> to read or write memory at the address stored in register <code>A</code>. To mimic address modes, some arithmetic (e.g. <code>[A+D+2]</code>) is available but is limited to addition with registers <code>B</code>,<code>C</code>,<code>D</code>,<code>E</code> or constant offsets, since in an hypothetical effective CPU design this would have a negative impact on branch prediction.<br />
+      There is also a constant <code>W</code> for the <i>machine word width byte count</i>, but is currently <code>1</code> since addresses index into a plain array of integers.<br />
+      <b>Syntax</b><br />
+      Write <code>A=B</code> to copy (assign) the value of <code>B</code> to <code>A</code>. Write <code>A+B</code> to calculate the sum of the value of <code>A</code> and <code>B</code> <u>and store it in <code>A</code></u>.
+      Also <code>A-B</code> subtraction, <code>A*B</code> multiplication, <code>A/B</code> division, <code>A%B</code> modulus, <code>A|B</code> or, <code>A&amp;B</code> and, <code>A^B</code> xor, <code>A&lt;&lt;B</code> shift left, <code>A&gt;&gt;B</code> shift right.<br />
+      Write <code>A?B</code> to compare the value of <code>A</code> to the value of <code>B</code> and have the flag <code>F</code> set accordingly.
+      Also <code>A&lt;B</code> less than, <code>A&gt;B</code> greater than, <code>A&lt;=B</code> less then or equal, <code>A&gt;=B</code> greater than or equal.<br />
+      Preceed an instruction with <code>?</code> to have it only perform when the flag <code>F</code> is set.<br />
+      Preceed an instruction with <code>!</code> to have it only perform when the flag <code>F</code> is <u>not</u> set.<br />
+      Preceed an instruction with <code>,</code> to have it behave <i>atomically</i> with the preceding instruction. This currently has no effect since this virtual CPU won't be handling IRQ's, but in a theoretical physical design this is important to guarantee correct operation with conditional instructions. Instructions prefixed with <code>?</code> or <code>!</code> also behave atomically.<br />
+      <b>Combinations</b><br />
+      Push? There is no push. Do <code>S-W,[S]=A</code>.
+      Pop? There is no pop. Do <code>A=[S],S+W</code>.<br />
+      Jump? There is no jump. Manipulate the instruction pointer <code>I</code> to hold the address of the next instruction to perform. (Program loading supports labels prefixed with <code>:</code>, see below.)<br />
+      Call? Do <code>S-W,[S]=I,[S]+2,I=A</code> (the <code>[S]+2</code> instruction is to have the return address point to past the <code>I=A</code> instruction, see below).<br />
+      Ret? Do <code>S+W,I=[S-W]</code> (but not <code>I=[S],S+W</code> since <code>I=[S]</code> would jump and never reach <code>S+W</code>).<br />
+      <b>Operation</b><br />
+      Enter instructions in the yellow box and press <kbd>Enter</kbd> to have them executed to manipulate or inspect the processor state and memory.<br />
+      Press <kbd>Program</kbd>, then <kbd>Load</kbd> to have a program processed for running.
+      Instructions are shown on the right, as if each one takes one index (<a href="https://en.wikipedia.org/wiki/RISC">RISC</a>-like) starting at 400. The binary encoding is not yet specified, but not relevant to this experiment anyway. It is loaded in separate memory (it's not <a href="https://en.wikipedia.org/wiki/Von_Neumann_architecture">Von Neumann</a> for now) only indexed by the instruction pointer. To use the same memory would require the binary encoding of the instructions, but that's perhaps for when I'm done playing with this.
+      Instructions are shown to the right in the blue box, click a line to toggle a breakpoint. Press <kbd>Step</kbd> to perform the next instruction at <code>I</code> or <kbd>Run</kbd> to start execution at <code>I</code>.<br />
+      <b>Machine interaction</b><br />
+      Input/output is very limited for now, mainly to output numerical values to see how calculation programs perform.<br />
+      Do <code>S-W,[S]=I,I=11</code> to output the value of <code>A</code>, 12 for <code>B</code>, etc.<br />
+      Do <code>S-W,[S]=I,I=21</code> to output the value of <code>[A]</code>, 22 for <code>[B]</code>, etc.<br />
+      Do <code>I=9</code> to halt execution cleanly. (Running past the end of the program would cause an <i>Instruction pointer past end of program</i> error.)
+    </div>
+  </div>
+  <div id="pmem" style="position:absolute;right:0pt;top:0pt;width:160pt;bottom:0pt;overflow:scroll;background-color:cyan;" onclick="toggleBreakPoint();"></div>
+  <div id="p1" style="display:none;position:absolute;top:20pt;left:40pt;background-color:cyan;border:1px solid black;">
+    <b>Program:</b><br />
+    <textarea id="p2" style="left:0pt;width:240pt;height:170pt;border:0pt;outline:0pt;background-color:gold;"></textarea><br />
+    <button onclick="btnLoad();">Load</button>
+    <button onclick="btnHide();">Close</button>
+  </div>
+  <div style="position:absolute;left:0pt;right:164pt;bottom:0pt;margin:0pt;padding:0pt;">
+    <textarea id="cmd" style="left:0pt;width:100%;height:15pt;border:0pt;outline:0pt;background-color:gold;"></textarea><br />
+    <button id="btnProg" onclick="btnProg();">Program</button>
+    <button id="btnStep" onclick="btnStep();">Step</button>
+    <button id="btnRun" onclick="btnRun();">Run</button>
+    <button id="btnBreak" onclick="btnBreak();" disabled="1">Break</button>
+    <button id="btnClear" onclick="btnClear();">Clear</button>
+    <input type="checkbox" id="showI" checked="1" onclick="btnShowI();" /><label for="showI">show I</label>
+  </div>
+  <script><!--
+  var dsp=document.getElementById("dsp");
+  var cmd=document.getElementById("cmd");
+  var pmem=document.getElementById("pmem");
+  var pci=null;//current instruction
+  var showI=document.getElementById("showI");
+  var cpu={
+    A:0,
+    B:0,
+    C:0,
+    D:0,
+    E:0,
+    S:10000,
+    I:400,
+    F:false
+  };
+  var mem=[];
+  function msg(x){
+    var d=document.createElement("div");
+    if(typeof x=="object")
+      d.textContent=JSON.stringify(x);
+    else
+      d.textContent=x;
+    dsp.appendChild(d);
+    d.scrollIntoView();
+  }
+  function msgFail(x){
+    var d=document.createElement("div");
+    d.textContent=x;
+    d.style.color="red";
+    dsp.appendChild(d);
+    d.scrollIntoView();
+    pmem.running=false;//TODO: move to somewhere in btnRunNext
+  }
+  var plasmField={
+    "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\x20":function(p){},//whitespace
+    "Aa":function(p){p.combine(p,"reg","A");},
+    "Bb":function(p){p.combine(p,"reg","B");},
+    "Cc":function(p){p.combine(p,"reg","C");},
+    "Dd":function(p){p.combine(p,"reg","D");},
+    "Ee":function(p){p.combine(p,"reg","E");},
+    "Ss":function(p){p.combine(p,"reg","S");},
+    "Ii":function(p){p.combine(p,"reg","I");},
+    "Ww":function(p){p.combine(p,"int","1");},//TODO: machine word byte count
+    //"Ff":function(p){p.combine(p,["reg","F"]);},
+    "0123456789":function(p){p.combine(p,"int",p.get("0123456789"));},
+    "=+-*/%&|@^":function(p){
+      if(p.Op) throw "duplicate operator";
+      p.Op=p.cc;//TODO: stack and operator precendence
+    },
+    "<>":function(p){
+      p.Op=p.get("<>=");
+    },
+    "[":function(p){//adressing modes
+      p.Addr={
+        r1:null,
+        r2:null,
+        offset:null
+      };
+      p.pushField(function(p,a,b){
+        //p.Op? (only "+" anyway)
+        if(a=="int")
+          p.Addr.offset=(p.Addr.offset||0)+parseInt(b);
+        else if(a=="reg"){
+          if(!p.Addr.r1)
+            p.Addr.r1=b;
+          else if(!p.Addr.r2)
+            if("BCDE".includes(b))
+              p.Addr.r2=b;
+            else
+              throw "only BCDE allowed in addressing addition";
+          else
+            throw "only two registered allowed in addressing";
+        }
+        else throw "unsupported memory index type";
+      },{
+        "Aa":function(p){p.combine(p,"reg","A");},
+        "Bb":function(p){p.combine(p,"reg","B");},
+        "Cc":function(p){p.combine(p,"reg","C");},
+        "Dd":function(p){p.combine(p,"reg","D");},
+        "Ee":function(p){p.combine(p,"reg","E");},
+        "Ss":function(p){p.combine(p,"reg","S");},
+        "Ww":function(p){p.combine(p,"int","1");},//TODO: machine word byte count
+        "-0123456789":function(p){p.combine(p,"int",p.get("0123456789"));},//TODO: no negatives?
+        "+":function(p){
+          //p.Op=p.cc;?
+        },
+        //"*":function(p){},?
+        //"-":function(p){},
+        "]":function(p){
+          p.popField();
+          p.combine(p,"mem",p.Addr);
+          p.Addr=null;
+        }
+      });
+    },
+    ":":function(p){
+      //p.advance();
+      p.combine(p,"lbl",p.get("0123456789ABCDEFGHIJKLMNOPQRSTUVWXZabdefghijklmnopqrstuvwxyz"));
+    },
+    "?":function(p){
+      if(p.Left)
+        p.Op=p.cc;
+      else if(p.Cond==0)
+        p.Cond=1;
+      else
+        throw "duplicate conditionals";
+    },
+    "!":function(p){
+      if(p.Left)
+        p.Op=p.cc;
+      else if(p.Cond==0)
+        p.Cond=2;
+      else
+        throw "duplicate conditionals";
+    },
+    ",":function(p){},//TODO: atomic
+    ";":function(p){//comment
+      while(p.cc&&p.cc>=" ")p.advance();
+    }
+  };
+  function plasmAddrR(rb){
+    var x=0;
+    if(rb.r1)x+=cpu[rb.r1];
+    if(rb.r2)x+=cpu[rb.r2];
+    if(rb.offset)x+=rb.offset;
+    return x;
+  }
+  function plasmAddrW(lb){
+    //TODO: limit addressing modes left side?
+    var x=0;
+    if(lb.r1)x+=cpu[lb.r1];
+    if(lb.r2)x+=cpu[lb.r2];
+    if(lb.offset)x+=lb.offset;
+    return x;
+  }
+  function plasmExec(c,la,lb,op,ra,rb){
+    if((c==0)||(c==1&&cpu.F)||(c==2&&!cpu.F)){
+      var lv;
+      var lx=0;//see (la=="mem")
+      if(la=="reg") lv=cpu[lb];
+      else if(la=="int") lv=parseInt(lb);
+      else if(la=="mem"){
+        lx=plasmAddrW(lb);//store for possible assignment, see below
+        lv=(mem[lx]||0);
+      }
+      else throw "unsupported operand type";
+      var rv;
+      if(ra=="reg") rv=cpu[rb];
+      else if(ra=="int") rv=parseInt(rb);
+      else if(ra=="mem") rv=(mem[plasmAddrR(rb)]||0);
+      else if(ra=="lbl") {
+        rv=pmem.labels[rb];
+        if(!rv) throw "undefined label "+rb;
+      }
+      else throw "unsupported operand type";
+      var oo={
+        "=":function(){lv=rv;},
+        "+":function(){lv=lv+rv;},//TODO: carry/overflow
+        "-":function(){lv=lv-rv;},//TODO: carry/overflow
+        "*":function(){lv=lv*rv;},
+        "/":function(){lv=lv/rv;},
+        "%":function(){lv=lv%rv;},
+        "&":function(){lv=lv&rv;},
+        "|":function(){lv=lv|rv;},
+        "!":function(){lv=-rv;},//{lv=!rv;}//TODO: proper not
+        "^":function(){lv=lv^rv;},
+        "?":function(){la="";cpu.F=(lv==rv);},//set la="" to skip assignment below
+        "<":function(){la="";cpu.F=(lv<rv);},
+        ">":function(){la="";cpu.F=(lv<rv);},
+        "<>":function(){la="";cpu.F=(lv!=rv);},
+        "<=":function(){la="";cpu.F=(lv<=rv);},
+        ">=":function(){la="";cpu.F=(lv>=rv);},
+        "<<":function(){lv=lv<<rv;},
+        ">>":function(){lv=lv>>rv;},
+        //"<<<"
+        //">>>"
+        "@":function(){//load effective address
+          if(ra=="mem")
+            lv=plasmAddrR(rb);
+          else
+            throw "@ only allowed on dereferences";
+        }
+      }[op];
+      if(oo){
+        oo();
+        if(la!="")
+          if(la=="reg") cpu[lb]=lv;
+          else if(la=="int") throw "can't assign to constant";
+          else if(la=="mem") mem[lx]=lv;
+          else throw "unsupported operand type";
+      }
+      else
+        throw "unsupported operator";
+    }
+  }
+  function plasmCombine(p,ra,rb){
+    if(!p.Op){
+      if(p.Left) throw "missing operator";
+      p.Left=[ra,rb];
+    }
+    else {
+      if(!p.Left) throw "no left operand";
+      plasmExec(p.Cond,p.Left[0],p.Left[1],p.Op,ra,rb);
+      p.Left=null;
+      p.Op=null;
+      p.Cond=0;
+    }
+  }
+  function plasmParser(code,combine,field){
+    return {
+      c:code,
+      ci:0,
+      ce:0,//error position
+      cc:code.charAt(0),
+      advance:function(){
+        this.ci++
+        this.cc=this.c.charAt(this.ci);
+      },
+      isNext:function(x){
+        var cn=this.c.charAt(this.ci+1);
+        if(cn&&x.includes(cn)){
+          this.ci++;
+          this.cc=cn;
+          return true;
+        }
+        else
+          return false;
+      },
+      get:function(x){
+        var r=this.cc;
+        while(this.isNext(x))r+=this.cc;
+        return r;
+      },
+      combine:combine,
+      field:field,
+      fields:[],
+      pushField:function(c,f){
+        this.fields.push([this.combine,this.field]);
+        this.combine=c;
+        this.field=f;
+      },
+      popField:function(){
+        var x=this.fields.pop();
+        this.combine=x[0];
+        this.field=x[1];
+      },
+      parse:function(){
+        try{
+          while(this.cc&&this.field){
+            var cf=null;
+            this.ce=this.ci;
+            for(var cx in this.field)
+              if(cx.includes(this.cc)){
+                cf=this.field[cx];
+                break;
+              }
+            if(cf)
+              cf(this);
+            else
+              throw "unsupported syntax";
+            this.advance();
+          }
+          //if(this.fields.length) throw?unwind?
+        }
+        catch(err){
+          throw err+" @"+this.ce;
+        }
+      }
+    }
+  }
+  function plasm(c){
+    msg("> "+c);
+    try{
+      var p=plasmParser(c,plasmCombine,plasmField);
+      //used by combine:
+      p.Op=null;
+      p.Left=null;
+      p.Cond=0;
+      p.parse();
+      if(p.Left){
+        var lv;
+        var la=p.Left[0];
+        var lb=p.Left[1];
+        if(la=="reg") msg(lb+"= "+cpu[lb]);
+        else if(la=="int") msg("= "+parseInt(lb))
+        else if(la=="mem") msg("mem["+[lb.r1,lb.r2,lb.offset].join(" ").trim()+"]= "+mem[plasmAddrR(lb)]);
+        else if(la=="lbl") msg("lbl"+lb+"= "+pmem.labels[lb]);
+        else msg("???"+la);
+      }
+    }
+    catch(err){
+      msgFail(err);
+    }
+  }
+  cmd.onkeypress=function(e){
+    if(e.keyCode==13){
+      cmd.select();
+      plasm(cmd.value);
+      msg(cpu);
+      return false;
+    }
+  }
+  msg(cpu);
+  cmd.focus();
+
+  function btnProg(){
+    document.getElementById("p1").style.display="";
+    document.getElementById("p2").focus();
+  }
+  function btnHide(){
+    document.getElementById("p1").style.display="none";
+    cmd.focus();
+  }
+  function btnLoad(){
+    while(pmem.children.length)pmem.lastChild.remove();//clear
+    pmem.labels={};
+    var pn=function(c,la,lb,op,ra,rb,p1,p2){
+      var x=document.createElement("DIV");
+      x.textContent=i+": "
+        +['','? ','! '][c] //TODO: atomic
+        +(la=="mem"?("["+[lb.r1,lb.r2,lb.offset].join(" ").trim()+"]")
+         :lb)
+        +op
+        +(ra=="mem"?("["+[rb.r1,rb.r2,rb.offset].join(" ").trim()+"]")
+         :rb);
+      x.data={c:c,la:la,lb:lb,op:op,ra:ra,rb:rb,p1:p1,p2:p2};
+      pmem.appendChild(x);
+      i++;
+    };
+    var pp=document.getElementById("p2");
+    var i=400;
+    var p=plasmParser(pp.value,function(p,ra,rb){
+      if(!p.Op){
+        if(p.Left) throw "missing operator";
+        if(ra=="lbl")
+        {
+          //addLabel
+          if(pmem.labels[rb])
+            throw "duplicate label '"+rb+"'";
+          else
+            pmem.labels[rb]=i;
+        }
+        else
+          p.Left=[ra,rb,p.ce];
+      }
+      else {
+        if(!p.Left) throw "no left operand";
+        pn(p.Cond,p.Left[0],p.Left[1],p.Op,ra,rb,p.Left[2],p.ci+1);
+        p.Left=null;
+        p.Op=null;
+        p.Cond=0;
+      }
+    },plasmField);
+    p.Op=null;
+    p.Left=null;
+    p.Cond=0;
+    try{
+      p.parse();
+      if(p.Left) throw "missing operator";
+      //TODO: check/resolve labels here?
+      msg('loaded '+pmem.children.length+' instructions');
+      cpu["I"]=400;//?
+      if(showI.checked){
+        pci=pmem.children[0];
+        if(pci) pci.style.backgroundColor="white";
+      }
+    }
+    catch(err){
+      msgFail(err);
+      setTimeout(function(){
+        pp.setSelectionRange(p.ce,p.ci+1);
+        pp.focus();
+      },0);
+    }
+  }
+  function btnShowI(){
+    if(showI.checked){
+      pci=pmem.children[cpu["I"]-400];
+      if(pci) pci.style.backgroundColor="white";
+    }
+    else {
+      if(pci){
+        pci.style.backgroundColor="";
+        pci=null;
+      }
+    }
+  }
+  function toggleBreakPoint(e){
+    var p=window.event.srcElement;
+    if(p!=pmem){
+      if(p.data.breakPoint){
+        p.data.breakPoint=false;
+        p.className="";
+      }
+      else {
+        p.data.breakPoint=true;
+        p.className="breakPoint";
+      }
+      document.getElementById("p2").setSelectionRange(p.data.p1,p.data.p2);
+    }
+  }
+  function btnClear(){
+    if(confirm("Clear all breakpoints?"))
+      for(var i=0;i<pmem.children.length;i++){
+        var p=pmem.children[i];
+        if(p.data.breakPoint){
+          p.data.breakPoint=false;
+          p.className="";
+        }
+      }
+  }
+
+  function plasmStep(){
+    try{
+      if(pci){
+        pci.style.backgroundColor="";
+        pci=null;
+      }
+      var i=cpu["I"];
+      if(i<400){
+        //special calls
+        if(i==0) msgFail("Instruction pointer zero");
+        else if(i==1) msgFail("Software interrupt");
+        else if(i==2) msgFail("Unkown instruction");
+        else if(i==3) msgFail("Software breakpoint");
+        else if(i==4) msgFail("Division by zero");//TODO
+        else if(i==5) msgFail("Stack overflow");//TODO
+        else if(i==6) msgFail("Access violation");//TODO
+        else if(i==9) pmem.running=false;//halt
+        else if(i==10) msg(cpu);
+        else if(i==11) msg(cpu["A"]);
+        else if(i==12) msg(cpu["B"]);
+        else if(i==13) msg(cpu["C"]);
+        else if(i==14) msg(cpu["D"]);
+        else if(i==15) msg(cpu["E"]);
+        else if(i==21) msg(mem[cpu["A"]]);
+        else if(i==22) msg(mem[cpu["B"]]);
+        else if(i==23) msg(mem[cpu["C"]]);
+        else if(i==24) msg(mem[cpu["D"]]);
+        else if(i==25) msg(mem[cpu["E"]]);
+        else msgFail("Unknown system call "+i);
+        if(i<10){
+          //abort!
+          //see pmem.running=false; by msgFail
+        }
+        else {
+          cpu["I"]=(mem[cpu["S"]]||0);
+          cpu["S"]=cpu["S"]+1;//(S+W)
+        }
+      }
+      else if(i>=400+pmem.children.length) msgFail("Instruction pointer past end of program");
+      else {
+        var c=pmem.children[i-400].data;
+        cpu["I"]=i+1;//RISC?
+        plasmExec(c.c,c.la,c.lb,c.op,c.ra,c.rb);
+      }
+      if(showI.checked){
+        pci=pmem.children[cpu["I"]-400];
+        if(pci) pci.style.backgroundColor="white";
+      }
+    }
+    catch(err){
+      msgFail(err);
+    }
+  }
+
+  function btnStep(){
+    plasmStep();
+  }
+  function btnRun(){
+    document.getElementById("btnStep").disabled=true;
+    document.getElementById("btnRun").disabled=true;
+    document.getElementById("btnBreak").disabled=false;
+    pmem.running=true;
+    setTimeout(btnRunNext,0);
+  }
+  function btnRunNext(){
+    if(pmem.running&&pci&&pci.data.breakPoint)pmem.running=false;
+    if(pmem.running) plasmStep();
+    if(pmem.running)
+      setTimeout(btnRunNext,0)
+    else {
+      document.getElementById("btnStep").disabled=false;
+      document.getElementById("btnRun").disabled=false;
+      document.getElementById("btnBreak").disabled=true;
+    }
+  }
+  function btnBreak(){
+    pmem.running=false;
+  }
+
+  //--></script>
+</body>
+</html>

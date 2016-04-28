@@ -1,0 +1,26 @@
+:init
+[0]=2
+[1]=2
+A=3
+B=0
+C=2
+
+:loop
+[B+W]<A ?[B+W]+[B]
+[B+W]?A ?I=:next
+B+2
+B?C ?I=:prime
+I=:loop
+
+:prime
+[C]=A
+[C+W]=A
+C+2
+
+:output
+S-W,[S]=:next,I=11
+
+:next
+A+2
+B=0
+I=:loop
