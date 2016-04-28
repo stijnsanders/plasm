@@ -11,7 +11,7 @@
 <body style="overflow:hidden;margin:0pt;padding:0pt;">
   <div style="position:absolute;left:0pt;top:0pt;right:160pt;bottom:25pt;margin:0pt;padding:0pt;overflow:scroll;" id="dsp">
     <div style="font-family:sans-serif;font-size:10pt;background-color:silver;padding:4pt;" id="intro">
-      <b>Welcome to Play Assembler</b><br/>
+      <b>Welcome to Play Assembler</b> <a href="https://github.com/stijnsanders/plasm">&raquo;github.com/stijnsanders/plasm</a><br/>
       In an effort to self-learn more about (virtual) machine code and compilers/parsers/lexers, I created this toy virtual CPU with its own assembler.
       It's distinctly unlike anything I know exists, specifically to investigate what it takes to make something like this work, and have a free choice of what to put in and what to leave out; also to notice whether old ideas have already nested in my head and if tunnel vision would take hold.<br />
       The CPU is kept strictly simple: it has 5 general purpose registers: <code>A</code>,<code>B</code>,<code>C</code>,<code>D</code>,<code>E</code>; a stack pointer <code>S</code>; an instruction pointer <code>I</code> when executing is set to the address of the next instruction to run; and a boolean flag <code>F</code>.<br />
