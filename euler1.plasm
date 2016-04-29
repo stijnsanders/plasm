@@ -1,0 +1,25 @@
+; https://projecteuler.net/problem=1
+; Multiples of 3 and 5
+; If we list all the natural numbers below 10 that are multiples of 3 or 5, we get 3, 5, 6 and 9. The sum of these multiples is 23.
+; Find the sum of all the multiples of 3 or 5 below 1000.
+
+
+A=0
+C=0
+D=0
+:loop
+
+B=C,B%5,B?0
+?I=:found
+B=C,B%3,B?0
+:found
+?D+C
+
+:next
+C+1
+C<1000
+?I=:loop
+
+;output D
+[S]=I,[S]+2,I=14
+I=9;done
