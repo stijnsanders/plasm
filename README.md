@@ -5,4 +5,4 @@ It's distinctly unlike anything I know exists, specifically to investigate what 
 
 It is also my first dabbling at a parser/interpreter in JavaScript.
 
-Read more in [`plasm.html`](https://cdn.rawgit.com/stijnsanders/plasm/master/plasm.html).
+Read more in [`plasm.html`](http://yoy.be/dev/plasm.html).

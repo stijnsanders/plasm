@@ -135,6 +135,7 @@
         }
         else throw "unsupported memory index type";
       },{
+        "\x09\x20":function(p){},//whitespace
         "Aa":function(p){p.combine(p,"reg","A");},
         "Bb":function(p){p.combine(p,"reg","B");},
         "Cc":function(p){p.combine(p,"reg","C");},
