@@ -1,0 +1,43 @@
+; https://projecteuler.net/problem=3
+; Largest prime factor
+; The prime factors of 13195 are 5, 7, 13 and 29.
+; What is the largest prime factor of the number 600851475143 ?
+
+:init
+[0]=2
+[1]=2
+A=3
+B=0
+C=2
+
+:loop
+[B+W]<A ?[B+W]+[B]
+[B+W]?A ?I=:next
+B+2
+B?C ?I=:prime
+I=:loop
+
+:prime
+[C]=A
+[C+W]=A
+C+2
+
+:next
+A+2
+B=0
+C<2000 ?I=:loop
+
+; find largest factor
+A=600851475143
+C-2
+
+:find
+B=A
+B%[C]
+B?0 ?I=:done
+C-2
+C?0 ?I=9 ;fail
+I=:find
+
+:done
+S-W,[S]=9,I=23 ;output [C], done

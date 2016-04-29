@@ -1,0 +1,9 @@
+Play Assembler: TODO
+
+- improve instruction index into source (used for setSelectionRange)
+- display labels on instruction list, or convert I=:label into I+x or I-x
+- display calculated value/flag on instruction
+- (local) storage of program(s)
+- links/load example programs
+- check out asm.js/WASM
+- retain breakpoints over program load

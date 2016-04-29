@@ -17,9 +17,6 @@ B=C,B%3,B?0
 
 :next
 C+1
-C<1000
-?I=:loop
+C<1000 ?I=:loop
 
-;output D
-[S]=I,[S]+2,I=14
-I=9;done
+S-W,[S]=9,I=14 ;output D, done

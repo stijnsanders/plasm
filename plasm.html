@@ -110,19 +110,21 @@
       p.Op=p.cc;//TODO: stack and operator precendence
     },
     "<>":function(p){
+      if(p.Op) throw "duplicate operator";
       p.Op=p.get("<>=");
     },
     "[":function(p){//adressing modes
       p.Addr={
         r1:null,
         r2:null,
-        offset:null
+        offset:null,
+        Op:null
       };
       p.pushField(function(p,a,b){
-        //p.Op? (only "+" anyway)
         if(a=="int")
-          p.Addr.offset=(p.Addr.offset||0)+parseInt(b);
+          p.Addr.offset=(p.Addr.offset||0)+parseInt(b)*((p.Addr.Op=="-")?-1:1);
         else if(a=="reg"){
+          if(p.Addr.Op=="-") throw "subtract register value in memory addressing not available";
           if(!p.Addr.r1)
             p.Addr.r1=b;
           else if(!p.Addr.r2)
@@ -143,9 +145,10 @@
         "Ee":function(p){p.combine(p,"reg","E");},
         "Ss":function(p){p.combine(p,"reg","S");},
         "Ww":function(p){p.combine(p,"int","1");},//TODO: machine word byte count
-        "-0123456789":function(p){p.combine(p,"int",p.get("0123456789"));},//TODO: no negatives?
-        "+":function(p){
-          //p.Op=p.cc;?
+        "0123456789":function(p){p.combine(p,"int",p.get("0123456789"));},//TODO: no negatives?
+        "+-":function(p){
+          if(p.Addr.Op) throw "duplicate operator";
+          p.Addr.Op=p.cc;
         },
         //"*":function(p){},?
         //"-":function(p){},
@@ -158,19 +161,23 @@
     },
     ":":function(p){
       //p.advance();
-      p.combine(p,"lbl",p.get("0123456789ABCDEFGHIJKLMNOPQRSTUVWXZabdefghijklmnopqrstuvwxyz"));
+      p.combine(p,"lbl",p.get("_-0123456789ABCDEFGHIJKLMNOPQRSTUVWXZabcdefghijklmnopqrstuvwxyz"));
     },
     "?":function(p){
-      if(p.Left)
+      if(p.Left){
+        if(p.Op) throw "duplicate operator";
         p.Op=p.cc;
+      }
       else if(p.Cond==0)
         p.Cond=1;
       else
         throw "duplicate conditionals";
     },
     "!":function(p){
-      if(p.Left)
+      if(p.Left){
+        if(p.Op) throw "duplicate operator";
         p.Op=p.cc;
+      }
       else if(p.Cond==0)
         p.Cond=2;
       else
@@ -221,7 +228,7 @@
         "+":function(){lv=lv+rv;},//TODO: carry/overflow
         "-":function(){lv=lv-rv;},//TODO: carry/overflow
         "*":function(){lv=lv*rv;},
-        "/":function(){lv=lv/rv;},
+        "/":function(){lv=Math.floor(lv/rv);},
         "%":function(){lv=lv%rv;},
         "&":function(){lv=lv&rv;},
         "|":function(){lv=lv|rv;},
@@ -229,7 +236,7 @@
         "^":function(){lv=lv^rv;},
         "?":function(){la="";cpu.F=(lv==rv);},//set la="" to skip assignment below
         "<":function(){la="";cpu.F=(lv<rv);},
-        ">":function(){la="";cpu.F=(lv<rv);},
+        ">":function(){la="";cpu.F=(lv>rv);},
         "<>":function(){la="";cpu.F=(lv!=rv);},
         "<=":function(){la="";cpu.F=(lv<=rv);},
         ">=":function(){la="";cpu.F=(lv>=rv);},
@@ -425,7 +432,10 @@
       cpu["I"]=400;//?
       if(showI.checked){
         pci=pmem.children[0];
-        if(pci) pci.style.backgroundColor="white";
+        if(pci){
+          pci.style.backgroundColor="white";
+          pci.scrollIntoView();
+        }
       }
     }
     catch(err){
@@ -439,7 +449,10 @@
   function btnShowI(){
     if(showI.checked){
       pci=pmem.children[cpu["I"]-400];
-      if(pci) pci.style.backgroundColor="white";
+      if(pci){
+        pci.style.backgroundColor="white";
+        pci.scrollIntoView();
+      }
     }
     else {
       if(pci){
@@ -519,7 +532,10 @@
       }
       if(showI.checked){
         pci=pmem.children[cpu["I"]-400];
-        if(pci) pci.style.backgroundColor="white";
+        if(pci){
+          pci.style.backgroundColor="white";
+          pci.scrollIntoView();
+        }
       }
     }
     catch(err){
@@ -538,8 +554,12 @@
     setTimeout(btnRunNext,0);
   }
   function btnRunNext(){
-    if(pmem.running&&pci&&pci.data.breakPoint)pmem.running=false;
-    if(pmem.running) plasmStep();
+    var i=8000;
+    while(pmem.running&&i>0){
+      if(pmem.running&&pci&&pci.data.breakPoint)pmem.running=false;
+      if(pmem.running) plasmStep();
+      i--;
+    }
     if(pmem.running)
       setTimeout(btnRunNext,0)
     else {
