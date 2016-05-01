@@ -53,10 +53,11 @@
   <div style="position:absolute;left:0pt;right:164pt;bottom:0pt;margin:0pt;padding:0pt;">
     <textarea id="cmd" style="left:0pt;width:100%;height:15pt;border:0pt;outline:0pt;background-color:gold;"></textarea><br />
     <button id="btnProg" onclick="btnProg();">Program</button>
+    <button id="btnClear" onclick="btnClear();">Clear</button>
     <button id="btnStep" onclick="btnStep();">Step</button>
     <button id="btnRun" onclick="btnRun();">Run</button>
     <button id="btnBreak" onclick="btnBreak();" disabled="1">Break</button>
-    <button id="btnClear" onclick="btnClear();">Clear</button>
+    <button id="btnNixPBs" onclick="btnNixBPs();">Nix BPs</button>
     <input type="checkbox" id="showI" checked="1" onclick="btnShowI();" /><label for="showI">show I</label>
   </div>
   <script><!--
@@ -64,6 +65,7 @@
   var cmd=document.getElementById("cmd");
   var pmem=document.getElementById("pmem");
   var pci=null;//current instruction
+  var pcb=null;//current breakpoint
   var showI=document.getElementById("showI");
   var cpu={
     A:0,
@@ -377,6 +379,9 @@
     document.getElementById("p1").style.display="";
     document.getElementById("p2").focus();
   }
+  function btnClear(){
+    while(dsp.children.length)dsp.lastChild.remove();//clear
+  }
   function btnHide(){
     document.getElementById("p1").style.display="none";
     cmd.focus();
@@ -430,8 +435,8 @@
       //TODO: check/resolve labels here?
       msg('loaded '+pmem.children.length+' instructions');
       cpu["I"]=400;//?
+      pci=pmem.children[0];
       if(showI.checked){
-        pci=pmem.children[0];
         if(pci){
           pci.style.backgroundColor="white";
           pci.scrollIntoView();
@@ -447,8 +452,8 @@
     }
   }
   function btnShowI(){
+    pci=pmem.children[cpu["I"]-400];
     if(showI.checked){
-      pci=pmem.children[cpu["I"]-400];
       if(pci){
         pci.style.backgroundColor="white";
         pci.scrollIntoView();
@@ -475,7 +480,7 @@
       document.getElementById("p2").setSelectionRange(p.data.p1,p.data.p2);
     }
   }
-  function btnClear(){
+  function btnNixBPs(){
     if(confirm("Clear all breakpoints?"))
       for(var i=0;i<pmem.children.length;i++){
         var p=pmem.children[i];
@@ -530,8 +535,8 @@
         cpu["I"]=i+1;//RISC?
         plasmExec(c.c,c.la,c.lb,c.op,c.ra,c.rb);
       }
+      pci=pmem.children[cpu["I"]-400];
       if(showI.checked){
-        pci=pmem.children[cpu["I"]-400];
         if(pci){
           pci.style.backgroundColor="white";
           pci.scrollIntoView();
@@ -556,7 +561,13 @@
   function btnRunNext(){
     var i=8000;
     while(pmem.running&&i>0){
-      if(pmem.running&&pci&&pci.data.breakPoint)pmem.running=false;
+      if(pmem.running&&pci&&pci.data.breakPoint)
+        if(pci==pcb)
+          pcb=null;
+        else {
+          pcb=pci;
+          pmem.running=false;
+        }
       if(pmem.running) plasmStep();
       i--;
     }
